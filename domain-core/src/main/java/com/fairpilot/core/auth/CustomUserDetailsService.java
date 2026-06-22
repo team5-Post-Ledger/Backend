@@ -21,21 +21,23 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String userId) throws UsernameNotFoundException {
-        Object[] row = (Object[]) em.createNativeQuery(
-                        "SELECT password_hash, role FROM users WHERE id = :id AND deleted_at IS NULL"
-                )
-                .setParameter("id", Long.valueOf(userId))
-                .getSingleResult();
+        try {
+            Object[] row = (Object[]) em.createNativeQuery(
+                            "SELECT password_hash, role FROM users WHERE id = :id AND deleted_at IS NULL"
+                    )
+                    .setParameter("id", Long.valueOf(userId))
+                    .getSingleResult();
 
-        if (row == null) throw new BusinessException(ErrorCode.NOT_FOUND, "사용자 없음");
+            String passwordHash = (String) row[0];
+            String role = (String) row[1];
 
-        String passwordHash = (String) row[0];
-        String role = (String) row[1];
-
-        return new User(
-                userId,
-                passwordHash,
-                List.of(new SimpleGrantedAuthority("ROLE_" + role))
-        );
+            return new User(
+                    userId,
+                    passwordHash,
+                    List.of(new SimpleGrantedAuthority("ROLE_" + role))
+            );
+        } catch (Exception e) {
+            throw new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + userId);
+        }
     }
 }

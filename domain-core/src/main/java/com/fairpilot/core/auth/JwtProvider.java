@@ -28,6 +28,7 @@ public class JwtProvider {
     public String generate(Long userId, String role) {
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .claim("userId", userId)
                 .claim("role", role)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expirationMs))
