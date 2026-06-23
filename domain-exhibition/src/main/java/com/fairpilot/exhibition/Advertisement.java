@@ -75,13 +75,4 @@ public class Advertisement extends BaseEntity {
         this.clicks = 0;
     }
 
-    /** 노출 카운트 증가 */
-    public void incrementImpressions() {
-        this.impressions++;
-    }
-
-    /** 클릭 카운트 증가 */
-    public void incrementClicks() {
-        this.clicks++;
-    }
 }

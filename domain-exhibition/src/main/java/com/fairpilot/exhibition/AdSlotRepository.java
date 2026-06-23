@@ -6,5 +6,7 @@ import java.util.List;
 
 public interface AdSlotRepository extends JpaRepository<AdSlot, Long> {
 
+    List<AdSlot> findAllByStatus(AdSlotStatus status);
+
     List<AdSlot> findAllByExhibitionIdAndStatus(Long exhibitionId, AdSlotStatus status);
 }
