@@ -30,19 +30,23 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/auth/**",                          // 로그인·회원가입
-                                "/api/exhibitions",                      // 박람회 목록 (비로그인)
-                                "/api/exhibitions/*",                    // 박람회 단건 (비로그인)
-                                "/api/exhibitions/*/booths",             // 부스 목록 (비로그인)
-                                "/api/exhibitions/*/booths/*",           // 부스 단건 (비로그인)
-                                "/api/exhibitions/*/sessions",           // 세션 목록 (비로그인)
-                                "/api/exhibitions/*/sessions/*",         // 세션 단건 (비로그인)
-                                "/api/exhibitions/*/ticket-types",       // 티켓타입 목록 (비로그인)
-                                "/api/payments/webhook"                  // 포트원 webhook (인증 불필요)
+                                "/api/auth/**",                              // 로그인·회원가입
+                                "/api/exhibitions",                          // 박람회 목록 (비로그인)
+                                "/api/exhibitions/*",                        // 박람회 단건 (비로그인)
+                                "/api/exhibitions/*/booths",                 // 부스 목록 (비로그인)
+                                "/api/exhibitions/*/booths/*",               // 부스 단건 (비로그인)
+                                "/api/exhibitions/*/sessions",               // 세션 목록 (비로그인)
+                                "/api/exhibitions/*/sessions/*",             // 세션 단건 (비로그인)
+                                "/api/exhibitions/*/ticket-types",           // 티켓타입 목록 (비로그인)
+                                "/api/payments/webhook",                     // 포트원 webhook (인증 불필요)
+                                "/api/advertisements/slots",                 // 광고 슬롯 목록 (비로그인)
+                                "/api/advertisements",                       // 광고 목록 (비로그인)
+                                "/api/advertisements/*/impression",          // 노출 카운트 (비로그인)
+                                "/api/advertisements/*/click"                // 클릭 카운트 (비로그인)
                         ).permitAll()
                         .requestMatchers(
-                                "/api/exhibitions/*/reservations",       // 예약 현황
-                                "/api/exhibitions/*/reservations/export" // 예약 엑셀
+                                "/api/exhibitions/*/reservations",           // 예약 현황
+                                "/api/exhibitions/*/reservations/export"     // 예약 엑셀
                         ).hasAnyRole("EXPO_ADMIN", "ACCOUNTANT", "PLATFORM_ADMIN")
                         .anyRequest().authenticated()
                 )
