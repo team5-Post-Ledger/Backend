@@ -14,4 +14,10 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     implementation project(':domain-core')
+    implementation project(':domain-tracking')
+    implementation project(':domain-reservation')
+    implementation project(':domain-exhibition')
+
+    // 엑셀 export (ExhibitionReservationController)
+    implementation 'org.apache.poi:poi-ooxml:5.2.5'
 }
