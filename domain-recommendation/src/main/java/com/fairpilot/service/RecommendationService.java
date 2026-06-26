@@ -95,10 +95,13 @@ public class RecommendationService {
         // 4. LLM 호출
         String prompt = String.format(promptFormat, interestKeywords, boothContext);
 
-        String rawJson = chatClient.prompt()
-                .user(prompt)
-                .call()
-                .content();
+        String rawJson;
+        try {
+            rawJson = chatClient.prompt().user(prompt).call().content();
+        } catch (Exception e) {
+            log.error("LLM 호출 실패", e);
+            return new RouteRecommendResponse(List.of(), "추천 서비스 일시 불가");
+        }
 
         log.info("LLM 응답: {}", rawJson);
 
