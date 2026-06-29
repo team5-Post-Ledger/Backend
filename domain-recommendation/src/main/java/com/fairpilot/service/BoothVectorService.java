@@ -69,6 +69,7 @@ public class BoothVectorService {
 
     private Document toDocument(BoothInfo booth) {
         return new Document(
+                String.valueOf(booth.id()),
                 String.format("[%s] %s - %s",
                         booth.category(), booth.name(), booth.description()),
                 Map.of(

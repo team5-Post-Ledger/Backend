@@ -98,15 +98,13 @@ public class RecommendationService {
         String rawJson;
         try {
             rawJson = chatClient.prompt().user(prompt).call().content();
+            log.info("LLM 응답: {}", rawJson);
+            // 5. 파싱 후 반환
+            return parse(rawJson, candidates);
         } catch (Exception e) {
             log.error("LLM 호출 실패", e);
             return new RouteRecommendResponse(List.of(), "추천 서비스 일시 불가");
         }
-
-        log.info("LLM 응답: {}", rawJson);
-
-        // 5. 파싱 후 반환
-        return parse(rawJson, candidates);
     }
 
     private RouteRecommendResponse parse(String rawJson, List<BoothInfo> booths) {
