@@ -30,6 +30,20 @@ public class PaymentController {
     }
 
     /**
+     * 토스페이먼츠 webhook 수신
+     * 토스가 결제 결과를 이 엔드포인트로 보내줌
+     * 멱등성 처리로 중복 호출 방어
+     */
+    @PostMapping("/webhook/toss")
+    public ApiResponse<Void> tossWebhook(
+            @RequestBody TossWebhookPayload payload) {
+        log.info("토스 webhook 수신: eventType={}, paymentKey={}",
+                payload.eventType(), payload.data().paymentKey());
+        paymentService.handleTossWebhook(payload);
+        return ApiResponse.ok(null);
+    }
+
+    /**
      * ONSITE 현장결제 등록
      * EXPO_ADMIN / STAFF 전용
      */

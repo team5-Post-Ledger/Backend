@@ -72,6 +72,62 @@ public class PaymentService {
         }
     }
 
+    /**
+     * 토스페이먼츠 webhook 멱등 처리
+     * DONE/ABORTED: 중복 수신 시 무시
+     * CANCELED: 기존 레코드 상태 업데이트 (멱등성 체크 제외)
+     */
+    @Transactional
+    public void handleTossWebhook(TossWebhookPayload payload) {
+        String pgTxId = payload.data().paymentKey();
+        String orderId = payload.data().orderId();
+        String status = payload.data().status();
+        BigDecimal amount = payload.data().totalAmount();
+
+        switch (status) {
+            case "DONE" -> {
+                if (paymentRepository.findByPgTxId(pgTxId).isPresent()) {
+                    log.info("중복 DONE webhook 무시: pgTxId={}", pgTxId);
+                    return;
+                }
+                Payment payment = Payment.builder()
+                        .reservationId(extractReservationIdFromOrderId(orderId))
+                        .pgProvider("TOSS")
+                        .pgTxId(pgTxId)
+                        .amount(amount != null ? amount : BigDecimal.ZERO)
+                        .feeAmount(BigDecimal.ZERO)
+                        .build();
+                payment.markPaid();
+                paymentRepository.save(payment);
+                log.info("토스 결제 완료 처리: pgTxId={}", pgTxId);
+            }
+            case "ABORTED" -> {
+                if (paymentRepository.findByPgTxId(pgTxId).isPresent()) {
+                    log.info("중복 ABORTED webhook 무시: pgTxId={}", pgTxId);
+                    return;
+                }
+                Payment payment = Payment.builder()
+                        .reservationId(extractReservationIdFromOrderId(orderId))
+                        .pgProvider("TOSS")
+                        .pgTxId(pgTxId)
+                        .amount(BigDecimal.ZERO)
+                        .feeAmount(BigDecimal.ZERO)
+                        .build();
+                payment.markFailed();
+                paymentRepository.save(payment);
+                log.info("토스 결제 실패 처리: pgTxId={}", pgTxId);
+            }
+            case "CANCELED" -> {
+                paymentRepository.findByPgTxId(pgTxId).ifPresentOrElse(p -> {
+                    p.markCancelled();
+                    paymentRepository.save(p);
+                    log.info("토스 결제 취소 처리: pgTxId={}", pgTxId);
+                }, () -> log.warn("취소 대상 토스 결제 없음: pgTxId={}", pgTxId));
+            }
+            default -> log.warn("알 수 없는 토스 결제 상태: {}", status);
+        }
+    }
+
     /** ONSITE 현장결제 처리 (/onsite 엔드포인트 전용) */
     @Transactional
     public void handleOnsite(OnsitePaymentRequest req) {
@@ -100,6 +156,16 @@ public class PaymentService {
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "pgTxId에서 reservationId 추출 실패: " + pgTxId);
+        }
+    }
+
+    /** orderId에서 reservationId 추출 (토스 orderId는 우리가 결제 요청 시 직접 발급) */
+    private Long extractReservationIdFromOrderId(String orderId) {
+        try {
+            return Long.parseLong(orderId.split("_")[0]);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "orderId에서 reservationId 추출 실패: " + orderId);
         }
     }
 }
