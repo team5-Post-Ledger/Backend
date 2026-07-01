@@ -91,10 +91,12 @@ public class Payment extends BaseEntity {
         this.status = PaymentStatus.CANCELLED;
     }
 
+    /** 토스 webhook DONE 수신 시 orderId → paymentKey 로 갱신 */
     public void updatePgTxId(String pgTxId) {
         this.pgTxId = pgTxId;
     }
 
+    /** 토스 webhook DONE 수신 시 실제 결제금액으로 갱신 */
     public void updateAmount(BigDecimal amount) {
         this.amount = amount;
     }
@@ -107,8 +109,6 @@ public class Payment extends BaseEntity {
     public void scheduleRetry(String errorMessage) {
         this.webhookRetryCount++;
         this.webhookLastError = errorMessage;
-
-        // 지수 백오프 간격 (분)
         int[] backoffMinutes = {1, 5, 15, 30, 60};
         int idx = Math.min(this.webhookRetryCount - 1, backoffMinutes.length - 1);
         this.webhookRetryAt = LocalDateTime.now().plusMinutes(backoffMinutes[idx]);
