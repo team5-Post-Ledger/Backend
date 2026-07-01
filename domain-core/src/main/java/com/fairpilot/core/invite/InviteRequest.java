@@ -14,13 +14,9 @@ public record InviteRequest(
         @NotBlank(message = "이름은 필수입니다.")
         String name,
 
-        /**
-         * 초대 가능 역할: EXPO_ADMIN, STAFF, ACCOUNTANT, EXHIBITOR
-         * PLATFORM_ADMIN, VISITOR 는 초대 불가 (서비스에서 검증)
-         */
         @NotNull(message = "역할은 필수입니다.")
         Role role,
 
-        /** 소속 박람회 ID */
+        @NotNull(message = "exhibitionId는 필수입니다.")  // ← 추가
         Long exhibitionId
 ) {}

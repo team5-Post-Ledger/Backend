@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,23 +33,34 @@ public class InviteService {
     @Value("${invite.expiry-hours:72}")
     private int expiryHours;
 
-    /** 초대 불가 역할 */
-    private static final List<Role> UNINVITABLE_ROLES =
+    /** PLATFORM_ADMIN 초대 불가 역할 */
+    private static final List<Role> PLATFORM_ADMIN_UNINVITABLE =
             List.of(Role.PLATFORM_ADMIN, Role.VISITOR);
+
+    /** EXPO_ADMIN 초대 가능 역할 — STAFF/EXHIBITOR/ACCOUNTANT만 */
+    private static final List<Role> EXPO_ADMIN_INVITABLE =
+            List.of(Role.STAFF, Role.EXHIBITOR, Role.ACCOUNTANT);
 
     /**
      * 관리자 초대 발급
-     * 1. 역할 유효성 검증
-     * 2. 이미 ACTIVE 계정이면 예외
-     * 3. INVITED 상태면 토큰 재발급 (재초대)
-     * 4. 신규면 User 생성
-     * 5. 이메일 발송
+     * - PLATFORM_ADMIN: EXPO_ADMIN/STAFF/EXHIBITOR/ACCOUNTANT 초대 가능
+     * - EXPO_ADMIN: STAFF/EXHIBITOR/ACCOUNTANT만 초대 가능 (EXPO_ADMIN 초대 불가)
      */
     @Transactional
-    public void invite(InviteRequest req) {
-        if (UNINVITABLE_ROLES.contains(req.role())) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "초대할 수 없는 역할입니다: " + req.role());
+    public void invite(InviteRequest req, Role callerRole) {
+        // 역할별 초대 가능 범위 검증
+        if (callerRole == Role.PLATFORM_ADMIN) {
+            if (PLATFORM_ADMIN_UNINVITABLE.contains(req.role())) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "초대할 수 없는 역할입니다: " + req.role());
+            }
+        } else if (callerRole == Role.EXPO_ADMIN) {
+            if (!EXPO_ADMIN_INVITABLE.contains(req.role())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN,
+                        "EXPO_ADMIN은 STAFF/EXHIBITOR/ACCOUNTANT만 초대할 수 있습니다.");
+            }
+        } else {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "초대 권한이 없습니다.");
         }
 
         String token = UUID.randomUUID().toString().replace("-", "");
@@ -59,11 +72,9 @@ public class InviteService {
                         throw new BusinessException(ErrorCode.CONFLICT,
                                 "이미 활성화된 계정입니다: " + req.email());
                     }
-                    // INVITED 상태 → 토큰 재발급
                     existingUser.reissueInviteToken(token, expiresAt);
                     log.info("초대 토큰 재발급: email={}", req.email());
                 }, () -> {
-                    // 신규 유저 생성
                     User user = User.builder()
                             .email(req.email())
                             .name(req.name())
@@ -81,9 +92,6 @@ public class InviteService {
 
     /**
      * 초대 수락 — 비밀번호 설정 + 계정 활성화
-     * 1. 토큰으로 유저 조회
-     * 2. 만료 여부 확인
-     * 3. acceptInvite() → passwordHash 저장, ACTIVE 전환, 토큰 소멸
      */
     @Transactional
     public void accept(AcceptInviteRequest req) {
