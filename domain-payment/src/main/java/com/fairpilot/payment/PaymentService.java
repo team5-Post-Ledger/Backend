@@ -22,36 +22,29 @@ public class PaymentService {
      * 결제 요청 발급
      * orderId = {reservationId}_{UUID} 형식으로 생성
      * READY Payment 레코드 저장 후 orderId + amount 반환
-     *
-     * 중복 방지: 동일 reservationId에 READY/PAID 결제가 이미 있으면 예외
-     * (사용자가 결제창을 두 번 여는 경우 방어)
      */
     @Transactional
     public PaymentInitiateResponse initiate(PaymentInitiateRequest req) {
-        // pgProvider 유효성 검증
         if (!List.of("TOSS", "PORTONE").contains(req.pgProvider())) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "지원하지 않는 PG사입니다: " + req.pgProvider());
         }
 
-        // 동일 예약의 READY/PAID 결제 중복 방지
         paymentRepository.findByReservationIdAndStatusIn(
                 req.reservationId(),
                 List.of(PaymentStatus.READY, PaymentStatus.PAID)
         ).ifPresent(p -> {
-            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE,
+            throw new BusinessException(ErrorCode.CONFLICT,
                     "이미 진행 중이거나 완료된 결제가 있습니다. reservationId=" + req.reservationId());
         });
 
-        // orderId 생성: {reservationId}_{UUID 하이픈 제거}
-        // extractReservationId()에서 split("_")[0]으로 파싱하므로 이 형식 고정
         String orderId = req.reservationId() + "_" + UUID.randomUUID().toString().replace("-", "");
 
         Payment payment = Payment.builder()
                 .reservationId(req.reservationId())
                 .exhibitionId(req.exhibitionId())
                 .pgProvider(req.pgProvider())
-                .pgTxId(orderId)   // 포트원은 pgTxId = orderId, 토스는 webhook 시 paymentKey로 갱신
+                .pgTxId(orderId)
                 .amount(req.amount())
                 .feeAmount(BigDecimal.ZERO)
                 .build();
@@ -65,8 +58,6 @@ public class PaymentService {
 
     /**
      * 포트원 webhook 멱등 처리
-     * PAID/FAILED: 중복 수신 시 무시
-     * CANCELLED: 기존 레코드 상태 업데이트
      */
     @Transactional
     public void handleWebhook(PortOneWebhookPayload payload) {
@@ -133,13 +124,11 @@ public class PaymentService {
                     log.info("중복 DONE webhook 무시: pgTxId={}", pgTxId);
                     return;
                 }
-                // initiate()로 생성된 READY 레코드가 있으면 업데이트, 없으면 신규 생성
                 Payment payment = paymentRepository
                         .findByReservationIdAndStatusIn(
                                 extractReservationId(orderId),
                                 List.of(PaymentStatus.READY))
                         .map(p -> {
-                            // pgTxId를 paymentKey로 갱신 (initiate 시엔 orderId로 저장됨)
                             p.updatePgTxId(pgTxId);
                             p.updateAmount(amount != null ? amount : BigDecimal.ZERO);
                             return p;
