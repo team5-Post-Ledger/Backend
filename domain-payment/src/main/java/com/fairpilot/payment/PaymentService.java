@@ -28,7 +28,6 @@ public class PaymentService {
 
         switch (status) {
             case "PAID" -> {
-                // 중복 webhook 방어
                 if (paymentRepository.findByPgTxId(pgTxId).isPresent()) {
                     log.info("중복 PAID webhook 무시: pgTxId={}", pgTxId);
                     return;
@@ -37,7 +36,7 @@ public class PaymentService {
                         .reservationId(extractReservationId(pgTxId))
                         .pgProvider("PORTONE")
                         .pgTxId(pgTxId)
-                        .amount(BigDecimal.ZERO) // 포트원 API 검증 후 실금액 세팅
+                        .amount(BigDecimal.ZERO)
                         .feeAmount(BigDecimal.ZERO)
                         .build();
                 payment.markPaid();
@@ -61,7 +60,6 @@ public class PaymentService {
                 log.info("결제 실패 처리: pgTxId={}", pgTxId);
             }
             case "CANCELLED" -> {
-                // CANCELLED는 기존 레코드 업데이트 — 멱등성 체크 없이 진행
                 paymentRepository.findByPgTxId(pgTxId).ifPresentOrElse(p -> {
                     p.markCancelled();
                     paymentRepository.save(p);
@@ -91,7 +89,7 @@ public class PaymentService {
                     return;
                 }
                 Payment payment = Payment.builder()
-                        .reservationId(extractReservationIdFromOrderId(orderId))
+                        .reservationId(extractReservationId(orderId))
                         .pgProvider("TOSS")
                         .pgTxId(pgTxId)
                         .amount(amount != null ? amount : BigDecimal.ZERO)
@@ -107,7 +105,7 @@ public class PaymentService {
                     return;
                 }
                 Payment payment = Payment.builder()
-                        .reservationId(extractReservationIdFromOrderId(orderId))
+                        .reservationId(extractReservationId(orderId))
                         .pgProvider("TOSS")
                         .pgTxId(pgTxId)
                         .amount(BigDecimal.ZERO)
@@ -131,7 +129,6 @@ public class PaymentService {
     /** ONSITE 현장결제 처리 (/onsite 엔드포인트 전용) */
     @Transactional
     public void handleOnsite(OnsitePaymentRequest req) {
-        // 중복 등록 방어
         if (paymentRepository.findByPgTxId(req.pgTxId()).isPresent()) {
             log.info("중복 ONSITE 결제 무시: pgTxId={}", req.pgTxId());
             return;
@@ -149,23 +146,16 @@ public class PaymentService {
         log.info("현장결제 처리: pgTxId={}, exhibitionId={}", req.pgTxId(), req.exhibitionId());
     }
 
-    /** pgTxId에서 reservationId 추출 (포트원 custom data 기반) */
-    private Long extractReservationId(String pgTxId) {
+    /**
+     * ID 문자열에서 reservationId 추출
+     * 포트원: pgTxId 기반, 토스: orderId 기반 — 동일한 {reservationId}_{uuid} 형식
+     */
+    private Long extractReservationId(String id) {
         try {
-            return Long.parseLong(pgTxId.split("_")[0]);
+            return Long.parseLong(id.split("_")[0]);
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "pgTxId에서 reservationId 추출 실패: " + pgTxId);
-        }
-    }
-
-    /** orderId에서 reservationId 추출 (토스 orderId는 우리가 결제 요청 시 직접 발급) */
-    private Long extractReservationIdFromOrderId(String orderId) {
-        try {
-            return Long.parseLong(orderId.split("_")[0]);
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "orderId에서 reservationId 추출 실패: " + orderId);
+                    "reservationId 추출 실패: " + id);
         }
     }
 }
